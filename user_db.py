@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-ماژول مدیریت دیتابیس مراجعین و ثبت سوابق مشاوره‌ها
-مرکز مشاوره خانواده نیک‌روان
+Database management module for client records and consultation history
+Family counseling center
 """
 import sqlite3
 import json
@@ -12,7 +12,7 @@ def init_user_db():
     conn = sqlite3.connect(str(USER_RECORDS_DB))
     cur = conn.cursor()
 
-    # جدول مشخصات مراجعین
+    # Clients profile table
     cur.execute("""
     CREATE TABLE IF NOT EXISTS users (
         phone TEXT PRIMARY KEY,
@@ -24,7 +24,7 @@ def init_user_db():
     )
     """)
 
-    # جدول سوابق درخواست‌ها و نتایج
+    # Requests and results history table
     cur.execute("""
     CREATE TABLE IF NOT EXISTS user_requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,7 +48,7 @@ def init_user_db():
     """)
     conn.commit()
 
-    # مایگریشن: افزودن ستون branch به جدول موجود (در صورت نبود)
+    # Migration: add the branch column to the existing table (if missing)
     existing_cols = [c[1] for c in cur.execute("PRAGMA table_info(user_requests)").fetchall()]
     if "branch" not in existing_cols:
         cur.execute("ALTER TABLE user_requests ADD COLUMN branch TEXT")
@@ -92,15 +92,15 @@ def init_consultants_db():
 
 def replace_consultants(profiles: list, uploaded_by: int = 0) -> dict:
     """
-    جایگزینی کامل دیتای مشاورین: داده قدیمی حذف و لیست جدید درج می‌شود.
-    خروجی: آمار مقایسه‌ای با دیتای قبلی برای گزارش
+    Full replacement of consultant data: old data is deleted and the new list is inserted.
+    Returns: comparison statistics against the previous data for reporting
     """
     import json as _json
     init_consultants_db()
     conn = sqlite3.connect(str(USER_RECORDS_DB))
     cur = conn.cursor()
     try:
-        # دیتای قبل از حذف برای گزارش مقایسه‌ای
+        # Data before deletion, for the comparison report
         old_names = {r[0] for r in cur.execute("SELECT name FROM consultants").fetchall()}
         old_count = len(old_names)
 
@@ -145,7 +145,7 @@ def replace_consultants(profiles: list, uploaded_by: int = 0) -> dict:
 
 
 def get_consultants_stats() -> dict:
-    """آمار فیلدهای پرشده جدول مشاورین برای گزارش صحت داده"""
+    """Filled-field statistics for the consultants table, for the data accuracy report"""
     import json as _json
     init_consultants_db()
     conn = sqlite3.connect(str(USER_RECORDS_DB))
@@ -190,8 +190,9 @@ def get_consultants_stats() -> dict:
 
 def validate_phone_and_get_count(phone: str, input_name: str, telegram_id: int = 0) -> tuple[bool, int, str]:
     """
-    اعتبارسنجی عدم تداخل شماره با نام دیگر و محاسبه مرتبه مراجعه
-    خروجی: (مجاز_بودن, شماره_مراجعه, نام_ثبت_شده)
+    Validate that the phone number is not already registered under a different name
+    and compute the visit number.
+    Returns: (allowed, request_number, stored_name)
     """
     init_user_db()
     conn = sqlite3.connect(str(USER_RECORDS_DB))
@@ -207,7 +208,7 @@ def validate_phone_and_get_count(phone: str, input_name: str, telegram_id: int =
     norm_stored = " ".join(stored_name.strip().split()).lower()
     norm_input = " ".join(input_name.strip().split()).lower()
     
-    # اگر شماره قبلاً با نام متفاوتی ثبت شده باشد
+    # If the number was previously registered under a different name
     if norm_stored != norm_input:
         return False, current_count, stored_name
         
@@ -215,7 +216,7 @@ def validate_phone_and_get_count(phone: str, input_name: str, telegram_id: int =
 
 
 def save_user_consultation(telegram_id: int, user_data: dict, recommendations: list) -> int:
-    """ثبت سابقه و ارتقای شمارنده مراجعات"""
+    """Record the consultation and increment the visit counter"""
     phone = user_data.get("phone", "")
     full_name = user_data.get("full_name", "")
     

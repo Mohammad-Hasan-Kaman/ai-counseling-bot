@@ -32,7 +32,7 @@ from config import (
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
-# مراحل گفتگو
+# Conversation states
 (NAME, PHONE, GENDER, AGE, TOPIC, PREV_THERAPY,
  PREV_DETAIL, EXPECTATION, PREFERRED_GENDER, BRANCH,
  ASK_GHQ, GHQ_QUESTION) = range(12)
@@ -68,14 +68,14 @@ def _is_admin(uid: int) -> bool:
     return uid in ADMIN_USER_IDS
 
 
-# سشن‌های احراز شده ادمین با رمز: {uid: timestamp ورود}
+# Admin sessions authenticated with password: {uid: login timestamp}
 import time as _time
-ADMIN_SESSION_TTL = 4 * 3600   # اعتبار ۴ ساعت
+ADMIN_SESSION_TTL = 4 * 3600   # valid for 4 hours
 _admin_sessions: dict = {}
 
 
 def _admin_authenticated(uid: int) -> bool:
-    """ادمین بودن + ورود با رمز معتبر در ۴ ساعت اخیر"""
+    """Admin status + logged in with a valid password within the last 4 hours"""
     ts = _admin_sessions.get(uid)
     if ts is None:
         return False
@@ -143,7 +143,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = str(update.effective_user.id)
     user_data_cache[uid] = {}
     context.user_data.clear()
-    # فلگ فعال بودن فرم پذیرش — تا ریپلایِ ادمین حین فرم، به برادکست نرود
+    # Intake-form active flag — so the admin's reply during the form doesn't go to the broadcast
     context.user_data["_in_main_conv"] = True
 
     welcome_text = (
@@ -177,7 +177,7 @@ async def phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     full_name = user_data_cache[str(update.effective_user.id)].get("full_name", "")
     
-    # بررسی عدم تداخل نام با شماره تماس ثبت‌شده
+    # Check that the name doesn't conflict with the registered phone number
     is_valid, req_count, _ = validate_phone_and_get_count(phone, full_name, update.effective_user.id)
     if not is_valid:
         error_msg = (
@@ -191,7 +191,7 @@ async def phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data_cache[str(update.effective_user.id)]["phone"] = phone
     user_data_cache[str(update.effective_user.id)]["request_count"] = req_count
     
-    # نمایش پیام اختصاصی مراجعین مکرر
+    # Show a welcome-back message for returning clients
     if req_count > 1:
         await update.message.reply_text(
             f"🌹 خوش‌آمدید {full_name} عزیز! این **بار {req_count}‌ام** است که در مرکز خانواده نیک‌روان در خدمت شما هستیم.",
@@ -431,14 +431,14 @@ async def _recommend(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ورود به پنل: /admin یا /admin PASSWORD"""
+    """Panel entry: /admin or /admin PASSWORD"""
     uid = update.effective_user.id
     if not _is_admin(uid):
         return await update.message.reply_text("دسترسی غیرمجاز.")
 
     supplied = (context.args or [""])[0] if context.args else ""
     if not supplied:
-        # /admin خالی: اگر سشن فعال دارد منو را نشان بده، وگرنه رمز بخواه
+        # Bare /admin: show the menu if there's an active session, otherwise ask for the password
         if _admin_authenticated(uid):
             return await _send_admin_menu(update)
         return await update.message.reply_text(
@@ -482,7 +482,7 @@ async def logout_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _require_admin_session(update: Update) -> bool:
-    """بررسی احراز هویت ادمین با رمز؛ در صورت نبود سشن پیام مناسب می‌دهد"""
+    """Check admin password authentication; sends an appropriate message when no session exists"""
     uid = update.effective_user.id
     if not _is_admin(uid):
         await update.message.reply_text("دسترسی غیرمجاز.")
@@ -554,7 +554,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         site_total_counselors = conn.execute(
             "SELECT COUNT(DISTINCT counselor_name) FROM appointments"
         ).fetchone()[0]
-        # چند نفر از مشاوران فعال موتور (اکسل) نوبت آزاد دارند — تطابق فازی نام
+        # How many active engine (Excel) counselors have free slots — fuzzy name matching
         from internal_ai_engine import names_match
         active_with_free = sum(
             1 for p in engine.profiles
@@ -589,7 +589,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         label = STATUS_LABELS.get(s, s)
         msg += f"{label}: {c} مشاور\n"
 
-    # آمار نوبت آزاد آخرین کراول — تفکیک کل سایت از مشاوران فعال موتور
+    # Free-slot stats from the latest crawl — whole site vs. active engine counselors
     if free_counselors > 0:
         msg += (
             f"\n🎯 **نتیجه آخرین کراول:** از {site_total_counselors} مشاور ثبت‌شده در سایت، "
@@ -629,7 +629,7 @@ FEEDBACK_MENU = (
 
 
 async def feedback_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ثبت بازخورد مثبت/منفی برای زوج (مشاور × مفهوم) توسط ادمین"""
+    """Record an admin's positive/negative feedback for a pair (counselor × concept)"""
     if not await _require_admin_session(update):
         return
 
@@ -665,7 +665,7 @@ async def feedback_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     counselor_name = " ".join(args[1:-1]).strip()
 
-    # تطبیق نام با پروفایل‌های فعال
+    # Match the name against active profiles
     from internal_ai_engine import names_match
     matched = next((p["clean_name"] for p in engine.profiles if names_match(p["clean_name"], counselor_name)), None)
     if not matched:
@@ -678,7 +678,7 @@ async def feedback_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not ok:
         return await update.message.reply_text("❌ خطا در ثبت بازخورد.")
 
-    # نمایش وزن جدید
+    # Show the new weight
     from internal_ai_engine import get_learning_weight
     w = get_learning_weight(matched, concept)
     concept_fa = {"زوج_ازدواج": "زوج/ازدواج", "نوجوان_جوان": "نوجوان", "والد_فرزند": "والد-فرزند",
@@ -695,7 +695,7 @@ async def feedback_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def learning_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """نمایش وضعیت سیستم خودآموز"""
+    """Show the self-learning system status"""
     if not await _require_admin_session(update):
         return
     rows = get_learning_stats()
@@ -711,7 +711,7 @@ async def learning_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def upload_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """شروع فلوی آپلود اکسل مشاورین"""
+    """Start the consultant Excel upload flow"""
     if not await _require_admin_session(update):
         return
     context.user_data["awaiting_consultants_file"] = True
@@ -727,20 +727,20 @@ async def upload_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def _process_consultants_excel_sync(xlsx_bytes: bytes, uploaded_by: int) -> dict:
-    """پردازش همگام: ذخیره فایل → تبدیل JSON → جایگزینی DB → بازگشت نتیجه"""
+    """Synchronous processing: save file → convert to JSON → replace DB → return result"""
     import json as _json
     base = PROFILES_JSON.parent
 
-    # ۱. ذخیره دائمی فایل اکسل با تاریخ
+    # 1. Permanently save the Excel file with a timestamp
     from datetime import datetime as _dt
     stamp = _dt.now().strftime("%Y%m%d_%H%M%S")
     saved_xlsx = base / f"consultants_{stamp}.xlsx"
     saved_xlsx.write_bytes(xlsx_bytes)
 
-    # ۲. تبدیل به JSON (فایل اصلی پروژه)
+    # 2. Convert to JSON (the project's original file)
     count_json = convert_excel_to_json(str(saved_xlsx), str(PROFILES_JSON))
 
-    # ۳. خواندن JSON و جایگزینی کامل جدول consultants در دیتابیس (با مقایسه)
+    # 3. Read the JSON and fully replace the consultants table in the database (with comparison)
     profiles = _json.loads(PROFILES_JSON.read_text(encoding="utf-8"))
     compare = replace_consultants(profiles, uploaded_by)
 
@@ -754,7 +754,7 @@ def _process_consultants_excel_sync(xlsx_bytes: bytes, uploaded_by: int) -> dict
 
 
 async def _handle_consultants_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دانلود و پردازش کامل فایل اکسل مشاوران"""
+    """Download and fully process the consultants' Excel file"""
     doc = update.message.document
     fname = (doc.file_name or "").lower()
     if not fname.endswith((".xlsx", ".xlsm")):
@@ -781,18 +781,18 @@ async def _handle_consultants_upload(update: Update, context: ContextTypes.DEFAU
             _executor, _process_consultants_excel_sync, xlsx_bytes, uid
         )
 
-        # reload موتور در لحظه — بدون نیاز به ری‌استارت بات
+        # Hot-reload the engine — no bot restart needed
         old_active = len(engine.profiles)
         engine.reload()
         new_active = len(engine.profiles)
 
-        # گزارش صحت داده از دیتابیس (بعد از جایگزینی)
+        # Data-integrity report from the database (after the replacement)
         stats = await loop.run_in_executor(_executor, get_consultants_stats)
 
         comp = result.get("compare", {})
         fname = os.path.basename(result["saved_path"])
 
-        # ── گزارش کامل برای آپلودکننده ──
+        # ── Full report for the uploader ──
         rep = (
             "✅ **آپلود موفق — دیتای مشاوران کامل جایگزین شد**\n\n"
             f"📁 فایل: `{fname}` ({result['file_size'] // 1024} KB)\n\n"
@@ -832,7 +832,7 @@ async def _handle_consultants_upload(update: Update, context: ContextTypes.DEFAU
         )
         await status.edit_text(rep, parse_mode=ParseMode.MARKDOWN)
 
-        # ── خلاصه به سایر ادمین‌ها و توسعه‌دهنده ──
+        # ── Brief summary for the other admins and the developer ──
         brief = (
             "📢 **گزارش آپلود دیتای مشاوران**\n"
             f"توسط کاربر `{uid}`\n"
@@ -856,7 +856,7 @@ async def _handle_consultants_upload(update: Update, context: ContextTypes.DEFAU
 
 
 async def doc_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دریافت فایل: اگر ادمین منتظر آپلود اکسل است → پردازش مشاوران؛ وگرنه راهنمایی"""
+    """File received: if the admin is waiting for an Excel upload → process consultants; otherwise guide them"""
     uid = update.effective_user.id
     if not _is_admin(uid):
         return
@@ -876,19 +876,19 @@ async def doc_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _handle_consultants_upload(update, context)
 
 
-# ── پنل ادمین: برادکست (ConversationHandler مستقل) ────────
+# ── Admin panel: broadcast (standalone ConversationHandler) ────────
 
-(BRWAIT_CONTENT, BRCONFIRM) = range(2)   # مراحل فلوی برادکست
+(BRWAIT_CONTENT, BRCONFIRM) = range(2)   # broadcast flow states
 
 
 def _admin_check(update: Update) -> bool:
-    """اجازه ورود به فلوی برادکست فقط برای ادمین در چت خصوصی"""
+    """Allow entering the broadcast flow only for admins in a private chat"""
     u = update.effective_user
     return bool(u and _is_admin(u.id) and update.effective_chat.type == "private")
 
 
 async def _session_gate(update: Update, context) -> bool:
-    """ورود به برادکست نیازمند سشن فعال ادمین است"""
+    """Broadcast entry requires an active admin session"""
     uid = update.effective_user.id
     if not _admin_authenticated(uid):
         await update.message.reply_text(
@@ -901,9 +901,9 @@ async def _session_gate(update: Update, context) -> bool:
 
 async def broadcast_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    ورود به فلوی برادکست:
-    - اگر روی پیامی ریپلای شده، همان پیام کاندید است → مستقیم مرحله تأیید
-    - در غیر این صورت منتظر ارسال محتوا در پیام بعدی
+    Enter the broadcast flow:
+    - If replying to a message, that message is the candidate → go straight to the confirmation step
+    - Otherwise, wait for the content in the next message
     """
     if not _admin_check(update):
         return ConversationHandler.END
@@ -928,7 +928,7 @@ async def broadcast_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def broadcast_receive_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دریافت محتوای برادکست (متن یا رسانه)"""
+    """Receive broadcast content (text or media)"""
     if not _admin_check(update):
         return ConversationHandler.END
 
@@ -959,7 +959,7 @@ async def _ask_broadcast_confirm(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def broadcast_confirm_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """تأیید یا انصراف نهایی"""
+    """Final confirmation or cancellation"""
     if not _admin_check(update):
         return ConversationHandler.END
 
@@ -1009,7 +1009,7 @@ async def broadcast_confirm_handler(update: Update, context: ContextTypes.DEFAUL
 
 
 async def cancel_broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """لغو عملیات برادکست از هر مرحله"""
+    """Cancel the broadcast operation from any step"""
     context.user_data.pop("br_chat_id", None)
     context.user_data.pop("br_msg_id", None)
     if _is_admin(update.effective_user.id):
@@ -1017,7 +1017,7 @@ async def cancel_broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 def build_broadcast_conversation() -> ConversationHandler:
-    """ساخت کانورسیشن مستقل برادکست — باید قبل از کانورسیشن اصلی ثبت شود"""
+    """Build the standalone broadcast conversation — must be registered before the main conversation"""
     admin_only = filters.User(user_id=list(ADMIN_USER_IDS)) & filters.ChatType.PRIVATE
 
     return ConversationHandler(
@@ -1046,10 +1046,10 @@ def build_broadcast_conversation() -> ConversationHandler:
 
 
 async def broadcast_entry_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ریپلای روی هر پیام توسط ادمین = کاندید برادکست (خارج از فرم پذیرش)"""
+    """An admin's reply to any message = broadcast candidate (outside the intake form)"""
     if not _admin_check(update):
         return ConversationHandler.END
-    # اگر ادمین وسط فرم پذیرش است، ریپلایش مربوط به فرم است نه برادکست
+    # If the admin is mid-intake-form, their reply belongs to the form, not the broadcast
     if context.user_data.get("_in_main_conv"):
         return ConversationHandler.END
     if not await _session_gate(update, context):
@@ -1060,7 +1060,7 @@ async def broadcast_entry_reply(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def export_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """دریافت فایل اکسل دیتای کاربران"""
+    """Send the Excel file of user data"""
     if not await _require_admin_session(update):
         return
     await update.message.reply_text("📊 در حال تهیه فایل اکسل دیتای کاربران...")
@@ -1068,7 +1068,7 @@ async def export_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         loop = asyncio.get_running_loop()
         excel_bytes = await loop.run_in_executor(_executor, export_users_excel)
         buf = io.BytesIO(excel_bytes)
-        buf.name = "nikravan_users.xlsx"
+        buf.name = "counseling_users.xlsx"
         from datetime import datetime as _dt
         caption = (
             f"📋 **خروجی دیتای کاربران مرکز خانواده نیک‌روان**\n"
@@ -1081,7 +1081,7 @@ async def export_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ خطا در تولید خروجی:\n{e}")
 
 
-# (فلوی قدیمی برادکست حذف شد — نسخه جدید با ConversationHandler مستقل بالاتر تعریف شده)
+# (The old broadcast flow was removed — the new version is defined above as a standalone ConversationHandler)
 
 
 # ── Scheduler & Startup Hook ────────────────────────────
@@ -1106,8 +1106,8 @@ async def post_init(application: Application):
 
 async def _global_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     """
-    هندلر سراسری خطا: خطاهای شبکه گذرا (قطع لحظه‌ای پروکسی/اینترنت) را
-    با یک لاگ کوتاه ثبت می‌کند — PTB خودش retry می‌کند و نیازی به ترِیس‌بک کامل نیست.
+    Global error handler: transient network errors (momentary proxy/internet drops)
+    are logged briefly — PTB retries on its own, so a full traceback isn't needed.
     """
     err = context.error
     if isinstance(err, NetworkError) and ("disconnected" in str(err).lower() or "timed out" in str(err).lower()):
@@ -1154,8 +1154,8 @@ def main():
         ],
     )
 
-    # کانورسیشن برادکست باید «قبل از» کانورسیشن اصلی ثبت شود تا fallback
-    # سراسری فلوی پذیرش، پیام‌های ادمین را ندزدد
+    # The broadcast conversation must be registered before the main conversation so that
+    # the global intake-flow fallback doesn't steal admin messages
     app.add_handler(build_broadcast_conversation())
 
     app.add_handler(conv)
@@ -1177,7 +1177,7 @@ def main():
 
     app.add_error_handler(_global_error_handler)
 
-    log.info("🤖 Bot started for Khanevade Nikravan with 2h crawler interval.")
+    log.info("🤖 AI counseling bot started with 2h crawler interval.")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

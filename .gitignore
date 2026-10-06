@@ -1,0 +1,24 @@
+# Secrets / local config
+.env
+
+# Runtime databases
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Uploads & generated data
+*.xlsx
+consultants_profile_full.json
+team.html
+teamlinks.html
+
+# Crawler
+crawler.lock
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store

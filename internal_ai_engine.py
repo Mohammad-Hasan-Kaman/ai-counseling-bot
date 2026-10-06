@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Nikravan Internal Spiral AI Engine & Clinical Decision Matcher
-موتور هوش مصنوعی داخلی، حلزونی و تریاژ بالینی مرکز مشاوره خانواده نیک‌روان
+Internal Spiral AI Engine & Clinical Decision Matcher
+Self-contained AI matching engine: spiral scoring, clinical triage and feedback
+learning for the family counseling center
 """
 
 import os
@@ -91,7 +92,7 @@ def get_consultant_gender(name: str) -> str:
     return "خانم"
 
 
-# نرمال‌سازی نام برای تطابق پروفایل‌های اکسل با رکوردهای سایت نوبت‌دهی
+# Normalize names so Excel profiles match the records of the booking website
 _TITLE_PATTERNS = [r"\bآقای\b", r"\bخانم\b", r"\bدکتر\b", r"\bدكتر\b", r"^اپراتور\s*\d*"]
 
 
@@ -100,21 +101,21 @@ def normalize_counselor_name(name: str) -> str:
     for pat in _TITLE_PATTERNS:
         s = re.sub(pat, "", s)
     s = " ".join(s.split())
-    # یکسان‌سازی نیم‌فاصله/فاصله و ی/ک عربی
+    # Unify zero-width/regular spaces and Arabic Yeh/Kaf characters
     s = s.replace("ي", "ی").replace("ك", "ک").replace("‌", " ").replace("‌", " ")
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
 
 def names_match(a: str, b: str) -> bool:
-    """تطابق فازی دو نام مشاور: نرمال + حذف فاصله‌ها + تطابق جزئی/فاصله‌ای"""
+    """Fuzzy match of two counselor names: normalize + strip spaces + partial/substring match"""
     na, nb = normalize_counselor_name(a), normalize_counselor_name(b)
     ka, kb = na.replace(" ", ""), nb.replace(" ", "")
     if not ka or not kb:
         return False
     if ka == kb or ka in kb or kb in ka:
         return True
-    # نام‌های تک‌توکنی با پیشوند مشترک بلند (۸۰٪+) و طول برابر: مهساامیدبیکی/مهساامیدبیگی
+    # Single-token names sharing a long common prefix (80%+) and equal length, e.g. MahsaAmidBeki/MahsaAmidBigi
     if len(ka) >= 8 and len(ka) == len(kb):
         prefix = 0
         for x, y in zip(ka, kb):
@@ -123,22 +124,22 @@ def names_match(a: str, b: str) -> bool:
             prefix += 1
         if prefix / len(ka) >= 0.8 and (len(ka) - prefix) <= 2:
             return True
-    # تطابق توکن‌محور: همه توکن‌های کوتاه‌تر در بلندتر باشند
+    # Token-based match: every token of the shorter name must be present in the longer one
     ta, tb = set(na.split()), set(nb.split())
     if ta and tb:
         short, long_ = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
         if short.issubset(long_):
             return True
-    # تطابق با تحمل ۱ حرف متفاوت در یک توکن (کربلائی/کربلایی، بیکی/بیگی)
-    # شرط امنیتی: حداقل ۲ توکن دیگر باید دقیقاً مچ باشند تا خطای مثبت رخ ندهد
-    # (مثلاً «زهرا مجاهدی» و «زهرا نیلی» نباید مچ شوند)
+    # Match tolerating one differing character inside a token (e.g. Beki vs Bigi)
+    # Safety condition: at least 2 other tokens must match exactly to avoid false positives
+    # (e.g. "Zahra Mohajeri" and "Zahra Nili" must not be matched)
     ta_sorted, tb_sorted = sorted(ta), sorted(tb)
     if len(ta_sorted) == len(tb_sorted) >= 2:
         exact_common = sum(1 for x in ta if x in tb)
         fuzzy_diffs = sum(1 for x, y in zip(ta_sorted, tb_sorted) if x != y and names_match_token(x, y))
         total_tokens = len(ta_sorted)
-        # برای نام ۲ توکنی: هر ۲ توکن باید مچ باشند (دقیق یا فازی)
-        # برای ۳+: حداقل ۲ توکن دقیق مشترک + حداکثر ۱ توکن فازی
+        # For a 2-token name: both tokens must match (exact or fuzzy)
+        # For 3+ tokens: at least 2 exactly shared tokens plus at most 1 fuzzy token
         if total_tokens == 2:
             return (exact_common + fuzzy_diffs) == 2
         else:
@@ -147,16 +148,16 @@ def names_match(a: str, b: str) -> bool:
 
 
 def names_match_token(x: str, y: str) -> bool:
-    """تطابق دو توکن نام با تحمل یک تفاوت تک‌حرفی"""
+    """Match two name tokens tolerating a single-character difference"""
     if x == y:
         return True
     if abs(len(x) - len(y)) > 1 or len(x) < 3:
         return False
-    # یک حرف جابجا/متفاوت در همان طول
+    # One swapped/different character at the same length
     if len(x) == len(y):
         diff = sum(1 for cx, cy in zip(x, y) if cx != cy)
         return diff <= 1
-    # یک حرف اضافه/کم (کربلائی/کربلایی، رفیقدوست/رفیق دوست)
+    # One extra/missing character (e.g. RafiqDoost vs Rafiq Doost)
     short_, long_ = (x, y) if len(x) < len(y) else (y, x)
     for i in range(len(long_)):
         if long_[:i] + long_[i+1:] == short_:
@@ -206,10 +207,10 @@ def parse_age_bounds_perfect(age_str: str) -> Tuple[int, int]:
 
 
 def init_learning_db():
-    """جدول یادگیری مفهومی: هر رکورد = (مشاور، مفهوم بالینی) با شمارنده موفقیت/شکست"""
+    """Concept learning table: each row = (counselor, clinical concept) with success/failure counters"""
     conn = sqlite3.connect(str(LEARNING_DB))
     cur = conn.cursor()
-    # جدول قدیمی (در صورت وجود) حفظ می‌شود؛ جدول مفهومی جدید ساخته می‌شود
+    # The legacy table (if any) is kept; the new concept table is created
     cur.execute("""
         CREATE TABLE IF NOT EXISTS concept_feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -227,7 +228,7 @@ def init_learning_db():
 
 
 def _concept_from_topic(topic: str) -> str | None:
-    """تشخیص مفهوم بالینی از متن آزاد موضوع کاربر"""
+    """Detect the clinical concept from the user's free-text topic"""
     t = (topic or "").lower()
     for concept, keywords in EXPANDED_SYNONYMS.items():
         if any(kw in t for kw in keywords):
@@ -237,8 +238,8 @@ def _concept_from_topic(topic: str) -> str | None:
 
 def get_learning_weight(counselor_name: str, concept: str | None = None) -> float:
     """
-    وزن یادگیری برای (مشاور، مفهوم).
-    اگر سابقه‌ای برای این جفت نباشد ۱.۰ برمی‌گردد (خنثی).
+    Learning weight for (counselor, concept).
+    Returns 1.0 (neutral) when this pair has no history.
     """
     if not concept:
         return 1.0
@@ -254,7 +255,7 @@ def get_learning_weight(counselor_name: str, concept: str | None = None) -> floa
         if not row:
             return 1.0
         pos, neg = row
-        # افزایش لگاریتمی با موفقیت‌ها، کاهنده خطی با شکست‌ها؛ بازه [0.6, 1.6]
+        # Logarithmic growth with successes, linear decay with failures; range [0.6, 1.6]
         w = 1.0 + math.log1p(pos) * 0.12 - neg * 0.10
         return max(0.6, min(1.6, w))
     except Exception:
@@ -262,7 +263,7 @@ def get_learning_weight(counselor_name: str, concept: str | None = None) -> floa
 
 
 def record_learning_event(counselor_name: str, topic: str, ghq_level: str = "normal", success: bool = True):
-    """ثبت رویداد یادگیری مفهومی: تقویت/تضعیف زوج (مشاور، مفهومِ موضوع کاربر)"""
+    """Record a concept learning event: reinforce/weaken the (counselor, user-topic concept) pair"""
     concept = _concept_from_topic(topic)
     if not concept:
         return
@@ -271,8 +272,8 @@ def record_learning_event(counselor_name: str, topic: str, ghq_level: str = "nor
 
 def record_feedback_direct(counselor_name: str, concept: str, success: bool) -> bool:
     """
-    ثبت بازخورد مستقیم ادمین بدون نیاز به متن موضوع.
-    خروجی: موفقیت عملیات (False اگر مفهوم نامعتبر باشد)
+    Record direct admin feedback without needing the topic text.
+    Returns: operation success (False when the concept is invalid)
     """
     if concept not in EXPANDED_SYNONYMS:
         return False
@@ -300,7 +301,7 @@ def _record_concept_feedback(counselor_name: str, concept: str, ghq_level: str, 
 
 
 def get_learning_stats() -> list:
-    """آمار یادگیری برای نمایش به ادمین: (مشاور، مفهوم، مثبت، منفی، وزن فعلی)"""
+    """Learning stats for the admin view: (counselor, concept, positive, negative, current weight)"""
     try:
         conn = sqlite3.connect(str(LEARNING_DB))
         rows = conn.execute(
@@ -396,7 +397,7 @@ class SpiralMatchEngine:
         is_legal_request = "حقوقی" in triggered_concepts
         is_medical_request = "پزشکی_روانپزشکی" in triggered_concepts
 
-        # حلقه ۱: فیلترهای صلب
+        # Pass 1: hard filters
         branch_filter_active = user_branch in ["ظفر", "خیابان ایران"]
 
         def _passes_hard_filters(p) -> bool:
@@ -404,7 +405,7 @@ class SpiralMatchEngine:
                 return False
             if user_gender_pref in ["آقا", "مرد"] and p["gender"] != "آقا":
                 return False
-            # فیلتر قطعی شعبه (مثل جنسیت): فقط مشاورانی که در شعبه انتخابی فعالیت دارند
+            # Deterministic branch filter (like gender): only counselors practicing at the selected branch
             if branch_filter_active:
                 loc = str(p.get("location", "")).strip()
                 if loc != "هر دو" and user_branch not in loc:
@@ -418,7 +419,7 @@ class SpiralMatchEngine:
 
         candidates = [p for p in self.profiles if _passes_hard_filters(p)]
 
-        # حلقه پشتیبان ۱: اگر با فیلتر سنی کسی پیدا نشد، سن را رها کن ولی جنسیت/شعبه بماند
+        # Fallback pass 1: if nobody matches with the age filter, drop age but keep gender/branch
         if not candidates:
             def _relax_age(p) -> bool:
                 if user_gender_pref in ["خانم", "زن"] and p["gender"] != "خانم":
@@ -434,7 +435,7 @@ class SpiralMatchEngine:
                 return True
             candidates = [p for p in self.profiles if _relax_age(p)]
 
-        # حلقه پشتیبان ۲ (فقط جنسیت): آخرین خط دفاع تا کاربر همیشه جواب بگیرد
+        # Fallback pass 2 (gender only): the last line of defense so the user always gets an answer
         if not candidates:
             candidates = [
                 p for p in self.profiles
@@ -445,7 +446,7 @@ class SpiralMatchEngine:
                 and not (not is_legal_request and ("وکالت" in p.get("education_experience", "") or p.get("active_specs") == ["مشاوره حقوقی خانواده"]))
             ]
 
-        # حلقه ۲: تحلیل بالینی و انطباق مفهومی صورت‌مسئله
+        # Pass 2: clinical analysis and conceptual matching of the problem statement
         ghq_active = bool(ghq and isinstance(ghq, dict) and "total" in ghq)
         depression = ghq.get("depression", 0) if ghq_active else 0
         anxiety = ghq.get("anxiety", 0) if ghq_active else 0
@@ -555,7 +556,7 @@ class SpiralMatchEngine:
                 score += slot_score
                 reasons.append(f"{free_slots} نوبت آزاد در دسترس")
 
-            # وزن خودآموز مفهومی: هر مفهوم بالینی جداگانه برای هر مشاور یاد گرفته می‌شود
+            # Self-taught concept weight: each clinical concept is learned separately for every counselor
             concept_boost = 1.0
             for concept in triggered_concepts:
                 w = get_learning_weight(p["clean_name"], concept)

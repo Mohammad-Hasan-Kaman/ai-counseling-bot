@@ -2,15 +2,15 @@ from bs4 import BeautifulSoup
 import json
 from config import MAPPING_JSON, BASE_DIR
 
-# فایل HTML رو بخون
+# Read the HTML file
 with open(BASE_DIR / "teamlinks.html", "r", encoding="utf-8") as f:
     soup = BeautifulSoup(f, "html.parser")
 
 mapping = {}
 
-# تمام المان‌های مشاور رو پیدا کن
+# Find all consultant items
 for item in soup.select(".team-item"):
-    # لینک رو از بخش image بگیر
+    # Get the link from the image section
     link_tag = item.select_one(".image a")
     if not link_tag:
         continue
@@ -18,16 +18,16 @@ for item in soup.select(".team-item"):
     if not href or not href.startswith("https://nikravan.org/team/"):
         continue
 
-    # اسم کامل رو از بخش name بگیر
+    # Get the full name from the name section
     name_tag = item.select_one(".name h4")
     if not name_tag:
         continue
     full_name = name_tag.get_text(strip=True)
 
-    # ذخیره کن
+    # Store it
     mapping[full_name] = href
 
-# ذخیره به فایل JSON
+# Save to the JSON file
 with open(str(MAPPING_JSON), "w", encoding="utf-8") as f:
     json.dump(mapping, f, ensure_ascii=False, indent=2)
 

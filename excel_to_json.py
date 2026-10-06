@@ -22,19 +22,19 @@ def convert_excel_to_json(excel_path=EXCEL_FILE, json_output=JSON_OUTPUT):
         if pd.isna(name) or not str(name).strip() or str(name).strip() == 'nan':
             continue
 
-        # ضریب توانمندی مشاورین (ستون 1)
+        # Consultant ability coefficient (column 1)
         ability = row[1]
         ability_val = float(ability) if pd.notna(ability) and str(ability).strip().isdigit() or isinstance(ability, (int, float)) and not pd.isna(ability) else 2.0
         if ability_val not in [1.0, 2.0, 3.0]:
             ability_val = 2.0
 
-        # مکان (ستون 3)
+        # Location (column 3)
         location = str(row[3]).strip() if pd.notna(row[3]) and str(row[3]).strip() != 'nan' else 'هر دو'
         
-        # تحصیلات و سوابق (ستون 4)
+        # Education and experience (column 4)
         edu = str(row[4]).strip() if pd.notna(row[4]) and str(row[4]).strip() != 'nan' else ''
 
-        # حوزه‌های عمومی (ستون‌های 5 تا 17)
+        # General areas (columns 5 to 17)
         gen_dict = {}
         for c in range(5, 18):
             h = str(df.iloc[1, c]).strip() if pd.notna(df.iloc[1, c]) else str(df.iloc[0, c]).strip()
@@ -42,7 +42,7 @@ def convert_excel_to_json(excel_path=EXCEL_FILE, json_output=JSON_OUTPUT):
             if pd.notna(val) and str(val).strip() and str(val).strip() != 'nan':
                 gen_dict[h] = str(val).strip()
 
-        # موضوعات جزئی (ستون‌های 19 تا 30)
+        # Detailed topics (columns 19 to 30)
         det_dict = {}
         for c in range(19, 31):
             h = str(df.iloc[1, c]).strip() if pd.notna(df.iloc[1, c]) else str(df.iloc[0, c]).strip()

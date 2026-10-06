@@ -1,20 +1,20 @@
 import re
 import json
 
-# خواندن فایل HTML
+# Read the HTML file
 with open("team.html", "r", encoding="utf-8") as f:
     html_content = f.read()
 
-# الگوی لینک صفحات اختصاصی (مشاهده شده در HTML)
+# Pattern for individual profile page links (as observed in the HTML)
 pattern = r'<h4><a href="(https://nikravan.org/team/[^"]+\.html)">'
 
 links = re.findall(pattern, html_content)
-# حذف تکراری‌ها (اگر باشند)
+# Remove duplicates (if any)
 unique_links = list(set(links))
 
 print(f"تعداد لینک‌های یافت شده: {len(unique_links)}")
 
-# ذخیره در فایل JSON
+# Save to the JSON file
 with open("consultant_links.json", "w", encoding="utf-8") as f:
     json.dump(unique_links, f, ensure_ascii=False, indent=2)
 

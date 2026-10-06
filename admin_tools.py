@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-ماژول ابزارهای پنل ادمین - مرکز مشاوره خانواده نیک‌روان
-شامل: خروجی اکسل دیتای کاربران و ارسال پیام برادکست (همگانی)
-این ماژول مستقل است و هیچ تغییری در کدهای موجود ایجاد نمی‌کند.
+Admin panel tools module for the AI counseling bot
+Provides: Excel export of user data and broadcast (mass) messaging
+This module is standalone and does not modify any existing code.
 """
 import io
 import json
@@ -17,12 +17,12 @@ from config import USER_RECORDS_DB
 
 log = logging.getLogger(__name__)
 
-BROADCAST_BATCH_DELAY = 0.05   # فاصله بین ارسال‌ها برای جلوگیری از محدودیت سرور بله
-BROADCAST_REPORT_EVERY = 20    # هر چند نفر یک‌بار گزارش پیشرفت ارسال شود
+BROADCAST_BATCH_DELAY = 0.05   # Delay between sends to avoid Bale server rate limits
+BROADCAST_REPORT_EVERY = 20    # Send a progress report every N recipients
 
 
 # ══════════════════════════════════════════════
-#  بخش ۱: خروجی اکسل دیتای کاربران
+#  Section 1: Excel export of user data
 # ══════════════════════════════════════════════
 
 _HEADER_FILL = PatternFill("solid", fgColor="2E5E4E")
@@ -56,7 +56,7 @@ def _style_header(ws, headers):
 
 
 def _fmt_recs(recommendations_json: str | None) -> tuple[str, str]:
-    """استخراج نام مشاوران و دلایل پیشنهاد از JSON ذخیره‌شده"""
+    """Extract consultant names and recommendation reasons from the stored JSON"""
     if not recommendations_json:
         return "", ""
     try:
@@ -74,7 +74,7 @@ def _fmt_recs(recommendations_json: str | None) -> tuple[str, str]:
 
 
 def _ghq_status(total) -> str:
-    """برچسب وضعیت بر اساس امتیاز کل GHQ (آستانه شدت: ۴۳)"""
+    """Status label based on the total GHQ score (severity threshold: 43)"""
     if total is None:
         return "انجام نداده"
     if total >= 43:
@@ -86,11 +86,11 @@ def _ghq_status(total) -> str:
 
 def export_users_excel() -> bytes:
     """
-    تولید خروجی اکسل دیتای کاربران در حافظه (بدون ساخت فایل روی دیسک).
-    هر دو شیت کامل و یکسان‌اند: شیت ۱ «کاربران» (مرتب بر اساس نام) و
-    شیت ۲ «سوابق درخواست‌ها» (مرتب بر اساس تاریخ، جدیدترین اول) —
-    هر ردیف = یک درخواست با تمام اطلاعات پرسیده‌شده از کاربر.
-    خروجی: بایت‌های فایل xlsx
+    Generate the user-data Excel output in memory (no file written to disk).
+    Both sheets are complete and identical: sheet 1 "Users" (sorted by name) and
+    sheet 2 "Request history" (sorted by date, newest first) —
+    each row = one request with all information asked from the user.
+    Returns: xlsx file bytes
     """
     import sqlite3
     conn = sqlite3.connect(str(USER_RECORDS_DB))
@@ -117,7 +117,7 @@ def export_users_excel() -> bytes:
          expectation, pref_gender, branch, ghq_json, ghq_total, recs,
          req_number, created) = r
 
-        # استخراج زیرمقیاس‌های GHQ از JSON ذخیره‌شده
+        # Extract GHQ subscales from the stored JSON
         somatic = anxiety = social = depression = None
         if ghq_json:
             try:
@@ -134,7 +134,7 @@ def export_users_excel() -> bytes:
         rec_names, rec_reasons = _fmt_recs(recs)
 
         def _clean(v):
-            """تبدیل None و رشته 'None' به رشته خالی برای نمایش تمیز در اکسل"""
+            """Convert None and the string 'None' to an empty string for clean display in Excel"""
             if v is None:
                 return ""
             s = str(v)
@@ -162,14 +162,14 @@ def export_users_excel() -> bytes:
             created or "",
         ])
 
-    # ── شیت ۱: کاربران (همه اطلاعات، مرتب بر اساس نام) ──
+    # ── Sheet 1: Users (all information, sorted by name) ──
     ws_users = wb.active
     ws_users.title = "کاربران"
     _style_header(ws_users, USERS_HEADERS)
     for i, r in enumerate(requests_rows_name, start=1):
         _write_request_row(ws_users, i, r)
 
-    # ── شیت ۲: سوابق درخواست‌ها (همان ستون‌ها، مرتب بر اساس تاریخ) ──
+    # ── Sheet 2: Request history (same columns, sorted by date) ──
     ws_req = wb.create_sheet("سوابق درخواست‌ها")
     _style_header(ws_req, REQUESTS_HEADERS)
     for i, r in enumerate(requests_rows_date, start=1):
@@ -182,11 +182,11 @@ def export_users_excel() -> bytes:
 
 
 # ══════════════════════════════════════════════
-#  بخش ۲: برادکست (ارسال پیام همگانی)
+#  Section 2: Broadcast (mass messaging)
 # ══════════════════════════════════════════════
 
 def get_broadcast_targets() -> list[int]:
-    """دریافت شناسه تمام کاربرانی که با بات تعامل داشته‌اند"""
+    """Get the IDs of all users who have interacted with the bot"""
     import sqlite3
     try:
         conn = sqlite3.connect(str(USER_RECORDS_DB))
@@ -200,9 +200,9 @@ def get_broadcast_targets() -> list[int]:
 
 async def send_broadcast(bot, targets: list[int], from_chat_id: int, message_id: int, progress_msg=None) -> dict:
     """
-    کپی یک پیام دلخواه (متن، عکس، ویس، فایل و...) برای همه کاربران.
-    از copy_message استفاده می‌کند تا هر نوع محتوایی پشتیبانی شود.
-    progress_msg: پیامی که گزارش پیشرفت به‌روزرسانی می‌شود (اختیاری)
+    Copy an arbitrary message (text, photo, voice, file, ...) to all users.
+    Uses copy_message so that any content type is supported.
+    progress_msg: message whose progress report is updated (optional)
     """
     sent = failed = blocked = 0
     total = len(targets)

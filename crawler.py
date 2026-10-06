@@ -10,18 +10,18 @@ from config import APPOINTMENTS_DB, MAPPING_JSON, CRAWLER_DELAY_SECONDS, CRAWLER
 log = logging.getLogger(__name__)
 TEAM_URL = "https://nikravan.org/team/"
 
-# پروکسی سیستم (مثلاً کلاینت VPN روی 10808) گاهی ناپایدار است.
-# استراتژی: اول از طریق پروکسی سیستم، در صورت خطا اتصال مستقیم (بدون پروکسی)
-DIRECT_PROXIES = {"http": None, "https": None}   # bypass پروکسی سیستم
-FETCH_RETRIES = 2          # هر URL حداکثر ۲ بار تلاش می‌شود
-RETRY_BACKOFF = 3          # ثانیه انتظار بین تلاش‌ها
+# The system proxy (e.g. a VPN client on port 10808) is sometimes unstable.
+# Strategy: try the system proxy first; on failure, connect directly (no proxy)
+DIRECT_PROXIES = {"http": None, "https": None}   # bypass the system proxy
+FETCH_RETRIES = 2          # each URL is tried at most twice
+RETRY_BACKOFF = 3          # seconds to wait between retries
 
 
 def fetch_page(url: str) -> str:
     """
-    دریافت صفحه سایت با مقاوم‌سازی:
-    تلاش ۱: مسیر پیش‌فرض (پروکسی سیستم اگر فعال باشد)
-    تلاش ۲: پس از backoff، اتصال مستقیم بدون پروکسی
+    Fetch a website page with resilience:
+    Attempt 1: default route (system proxy if enabled)
+    Attempt 2: after backoff, direct connection without a proxy
     """
     last_err = None
     for attempt in range(FETCH_RETRIES):
@@ -92,13 +92,13 @@ def crawl_available_slots():
     log.info("🔍 در حال استخراج نوبت‌های %d مشاور...", len(mapping))
 
     consecutive_errors = 0
-    MAX_CONSECUTIVE_ERRORS = 5   # اگر شبکه کاملاً قطع باشد، بعد از ۵ خطا کل کراول متوقف می‌شود
+    MAX_CONSECUTIVE_ERRORS = 5   # stop the whole crawl after 5 consecutive failures (network fully down)
 
     for name, url in mapping.items():
         try:
             html = fetch_page(url)
         except Exception as e:
-            # خطای شبکه/پروکسی: داده قبلی این مشاور دست‌نخورده می‌ماند
+            # Network/proxy error: this counselor's previous data is left untouched
             consecutive_errors += 1
             log.error("❌ خطای اتصال هنگام کراول %s: %s", name, e)
             if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
@@ -112,8 +112,8 @@ def crawl_available_slots():
         try:
             soup = BeautifulSoup(html, "html.parser")
 
-            # اولویت ۱: جدول نوبت‌ها — عبارات «لیست انتظار»/«تماس تلفنی» ممکن است در
-            # منو یا فوتر هر صفحه هم باشند؛ پس ابتدا باید جدول را بررسی کرد.
+            # Priority 1: the appointments table — the phrases "waiting list"/"phone call" may also appear
+            # in the menu or footer of any page, so the table has to be checked first.
             table = soup.find("table", {"id": "report"}) or soup.find("table", class_="table")
             free_slots = []
             if table:
@@ -131,7 +131,7 @@ def crawl_available_slots():
                         room_el = cols[1].find("small")
                         room_txt = room_el.get_text(strip=True) if room_el else ""
                         branch = row.get("data-branch", "")
-                        # تشخیص شعبه از متن اتاق اگر data-branch خالی بود
+                        # Infer the branch from the room text when data-branch is empty
                         if not branch and room_txt:
                             if "ظفر" in room_txt or "زعفرانیه" in room_txt:
                                 branch = "zafar"
@@ -150,7 +150,7 @@ def crawl_available_slots():
                 time.sleep(CRAWLER_DELAY_SECONDS)
                 continue
 
-            # اولویت ۲: پیام‌های وضعیت — فقط وقتی هیچ نوبت آزادی در جدول نیست معتبرند
+            # Priority 2: status messages — valid only when the table has no free slots
             page_text = soup.get_text()
             _db("DELETE FROM appointments WHERE counselor_name=?", (name,))
 
@@ -159,7 +159,7 @@ def crawl_available_slots():
             elif "تماس تلفنی" in page_text or "صرفا با تماس" in page_text:
                 _db("INSERT INTO appointments (counselor_name,status) VALUES (?,?)", (name, "phone_only"))
             elif "لیست انتظار" in page_text or table is not None:
-                # صفحه دارای جدول بدون ردیف free = همه پر است؛ صرف وجود کلمه لیست انتظار در منو هم waiting است
+                # A table without free rows means everything is booked; even the mere word "waiting list" in the menu counts as waiting
                 _db("INSERT INTO appointments (counselor_name,status) VALUES (?,?)", (name, "waiting"))
             else:
                 _db("INSERT INTO appointments (counselor_name,status) VALUES (?,?)", (name, "no_table"))
