@@ -35,7 +35,7 @@ df = pd.read_excel(EXCEL_PATH, sheet_name='Results', header=None)
 header_row = df.iloc[0]
 data_rows = df.iloc[3:]
 
-# ================== لیست مشاوران مورد نظر (یکتا) ==================
+# ================== Target counselors (unique list) ==================
 TARGET_NAMES = {
     "ریحانه سادات مدنی",
     "محمدعلی نوری",
@@ -86,7 +86,7 @@ TARGET_NAMES = {
 }
 # ================================================================
 
-# پیدا کردن ایندکس ستون‌ها
+# Find the column indices
 col_name = None
 col_education = None
 col_age = None
@@ -152,7 +152,7 @@ def extract_specialties(text):
     parts = [p.strip() for p in text.split(',') if p.strip()]
     return parts
 
-# بارگذاری لینک‌ها از mapping
+# Load profile links from the mapping file
 profile_url_map = {}
 try:
     with open("consultant_mapping.json", "r", encoding="utf-8") as f:
@@ -170,7 +170,7 @@ for idx, row in data_rows.iterrows():
     if not name:
         continue
 
-    # حذف فاصله‌های اضافی و عادی‌سازی
+    # Remove extra whitespace and normalize
     name = name.strip()
     if name not in TARGET_NAMES:
         continue
@@ -187,14 +187,14 @@ for idx, row in data_rows.iterrows():
     age_min, age_max = parse_age_range(age_range)
     profile_url = profile_url_map.get(name, None)
 
-    # استخراج تخصص عمومی
+    # Extract general specialties
     general = []
     for col in col_general:
         if col is not None and pd.notna(row[col]):
             general.extend(extract_specialties(row[col]))
     general = list(set(general))
 
-    # استخراج تخصص جزئی
+    # Extract granular specialties
     sub = {}
     for col in col_sub:
         if col is not None and pd.notna(row[col]):
@@ -220,7 +220,7 @@ cursor.execute("SELECT COUNT(*) FROM consultants")
 total = cursor.fetchone()[0]
 print(f"📊 تعداد کل مشاوران در دیتابیس: {total}")
 
-# بررسی نام‌های پیدا نشده
+# Check for names that were not found
 missing = TARGET_NAMES - found_names
 if missing:
     print(f"⚠️ این نام‌ها در فایل اکسل پیدا نشدند: {missing}")
