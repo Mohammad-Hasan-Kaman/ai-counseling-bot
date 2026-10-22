@@ -1,85 +1,50 @@
-# Contributing to ai-counseling-bot
+# Contributing to AI Counseling Bot
 
-Thanks for taking the time to contribute. This guide explains how to get a
-change merged.
+Thanks for your interest in improving the bot. This project mixes conversation design,
+clinical screening logic and a matching engine — so changes are reviewed carefully.
 
-## Before you start
+## Where to start
 
-- **Search the issues first.** The bug or feature may already be tracked.
-- **Open an issue before a large change.** A short discussion up front avoids
-  duplicated work.
-- **One topic per pull request.** Mixed changes are hard to review and hard to
-  revert.
+- **Good first issues** — documentation, translations of helper text, test coverage.
+- **Engine work** (`internal_ai_engine.py`) — please include before/after examples of a
+  recommendation list so the ranking change can be judged.
+- **Conversation flow** (`main.py`) — keep the user-facing strings in Persian and
+  RTL-friendly; code, comments and docs stay in English.
 
 ## Development setup
 
 ```bash
 git clone https://github.com/Mohammad-Hasan-Kaman/ai-counseling-bot.git
 cd ai-counseling-bot
-```
-
-Install the dependencies and run the bot:
-
-```bash
 pip install -r requirements.txt
+cp .env.example .env    # add a test bot token and your own Bale ID as admin
 python main.py
 ```
 
-The Bale token and the admin KV namespace are read from the environment (see
-`.env.example`).
-
-
-## Making a change
-
-1. Create a branch from `main`:
-
-   ```bash
-   git checkout -b feature/short-description
-   ```
-
-2. Make the change, keeping it focused.
-
-3. Commit with a clear message:
-
-   ```bash
-   git add -A
-   git commit -m "feat: describe the change in one line"
-   ```
-
-4. Push and open a pull request:
-
-   ```bash
-   git push -u origin feature/short-description
-   ```
-
-## Commit message format
-
-Use the conventional prefixes, in the past tense:
-
-| Prefix | Use it for |
-| --- | --- |
-| `feat:` | A new feature. |
-| `fix:` | A bug fix. |
-| `docs:` | Documentation only. |
-| `refactor:` | A change that neither fixes a bug nor adds a feature. |
-| `chore:` | Build, dependency or housekeeping changes. |
-| `test:` | Adding or correcting tests. |
+Use a **test bot token**, never your production one, while developing.
 
 ## Pull request checklist
 
-- [ ] The change works on a clean checkout.
-- [ ] Tests pass, and new behaviour comes with a test.
-- [ ] The README is updated if behaviour or configuration changed.
-- [ ] No credentials, API keys, `.env` files or local paths are committed.
-- [ ] The diff contains only the files this pull request is meant to change.
+- [ ] `python -m py_compile *.py` passes (no syntax errors)
+- [ ] No secrets, tokens, `.env`, databases or Excel data committed
+- [ ] New user-facing strings are Persian and render correctly right-to-left
+- [ ] README / docs updated if behaviour changed
+- [ ] PR description explains *why* the change is needed
 
-## Security
+## Reporting bugs
 
-Do not commit secrets, tokens, passwords or private URLs. If you find a
-vulnerability, report it privately through GitHub's security advisory form
-rather than a public issue.
+Open an issue with:
 
-## License
+1. What you did, what you expected, what happened
+2. Python version and OS
+3. Steps to reproduce — **remove tokens, phone numbers and user IDs first**
 
-By contributing you agree that your contribution is licensed under the
-[MIT License](LICENSE) of this repository.
+## Safety rules
+
+This tool touches mental-health screening. Never:
+
+- change GHQ-28 wording or scoring without citing the source
+- claim the bot gives a medical diagnosis
+- commit real user data, even anonymised-looking data
+
+By contributing you agree your work is released under the [MIT License](LICENSE).
