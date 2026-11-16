@@ -29,7 +29,7 @@ CREATE TABLE consultants (
 conn.commit()
 print("✅ جدول consultants ساخته شد.")
 
-EXCEL_PATH = 'data/همکاران نیک روان.xlsx'
+EXCEL_PATH = os.getenv('CONSULTANT_EXCEL_PATH', 'data/consultants.xlsx')
 df = pd.read_excel(EXCEL_PATH, sheet_name='Results', header=None)
 
 header_row = df.iloc[0]

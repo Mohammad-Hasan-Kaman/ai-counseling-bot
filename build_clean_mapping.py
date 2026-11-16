@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 import json
-from config import MAPPING_JSON, BASE_DIR
+from config import MAPPING_JSON, BASE_DIR, CENTER_TEAM_URL
 
 # Read the HTML file
 with open(BASE_DIR / "teamlinks.html", "r", encoding="utf-8") as f:
@@ -15,7 +15,7 @@ for item in soup.select(".team-item"):
     if not link_tag:
         continue
     href = link_tag.get("href")
-    if not href or not href.startswith("https://example.com/team/"):
+    if not href or not href.startswith(CENTER_TEAM_URL):
         continue
 
     # Get the full name from the name section

@@ -12,6 +12,13 @@ APPOINTMENTS_DB = BASE_DIR / "appointments.db"
 USER_RECORDS_DB = BASE_DIR / "user_records.db"
 CRAWLER_LOCK = BASE_DIR / "crawler.lock"
 
+# The counseling center this deployment serves. Configurable via .env so
+# the public source carries no real center identity; the defaults are
+# neutral placeholders.
+CENTER_NAME = os.getenv("CENTER_NAME", "مرکز مشاوره خانواده")
+CENTER_BASE_URL = os.getenv("CENTER_BASE_URL", "https://example.com").rstrip("/")
+CENTER_TEAM_URL = os.getenv("CENTER_TEAM_URL", CENTER_BASE_URL + "/team/")
+
 # Bale bot token — environment only (.env on the server); never commit it to git
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 

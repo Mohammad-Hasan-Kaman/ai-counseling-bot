@@ -22,3 +22,7 @@ crawler.lock
 .vscode/
 .idea/
 .DS_Store
+
+# Generated counselor data — produced locally by the crawler, never commit
+mapping.json
+references/

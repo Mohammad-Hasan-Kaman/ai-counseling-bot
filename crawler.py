@@ -5,10 +5,11 @@ import sqlite3
 import time
 import requests
 from bs4 import BeautifulSoup
-from config import APPOINTMENTS_DB, MAPPING_JSON, CRAWLER_DELAY_SECONDS, CRAWLER_HEADERS
+from config import (APPOINTMENTS_DB, MAPPING_JSON, CRAWLER_DELAY_SECONDS,
+                    CRAWLER_HEADERS, CENTER_BASE_URL, CENTER_TEAM_URL)
 
 log = logging.getLogger(__name__)
-TEAM_URL = "https://example.com/team/"
+TEAM_URL = CENTER_TEAM_URL
 
 # The system proxy (e.g. a VPN client on port 10808) is sometimes unstable.
 # Strategy: try the system proxy first; on failure, connect directly (no proxy)
@@ -66,7 +67,7 @@ def scrape_team_list() -> int:
             name = heading.get_text(strip=True)
             if name and href and "team/" in href:
                 if not href.startswith("http"):
-                    href = "https://example.com" + href
+                    href = CENTER_BASE_URL + href
                 mapping[name] = href
 
         if mapping:

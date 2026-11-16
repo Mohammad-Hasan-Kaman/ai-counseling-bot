@@ -148,9 +148,8 @@ excel_to_json.py        One-shot converters for the counselors dataset
 load_clean.py           Rebuilds the clean counselors database from Excel
 build_clean_mapping.py  Builds the name → profile-URL mapping
 extract_links_from_html.py  Extracts team profile links from saved HTML
-mapping.json            Counselor name → profile URL map
+mapping.json            Counselor name → profile URL map (generated locally by the crawler; not committed — see mapping.example.json for the format)
 docs/                   Banner, architecture diagram and conversation mockup
-references/             Saved copy of the public team page (crawler input sample)
 ```
 
 ## 🤝 Contributing

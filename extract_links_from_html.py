@@ -1,3 +1,4 @@
+import os
 import re
 import json
 
@@ -6,7 +7,8 @@ with open("team.html", "r", encoding="utf-8") as f:
     html_content = f.read()
 
 # Pattern for individual profile page links (as observed in the HTML)
-pattern = r'<h4><a href="(https://example.com/team/[^"]+\.html)">'
+_base = os.getenv("CENTER_BASE_URL", "https://example.com").rstrip("/")
+pattern = r'<h4><a href="(' + re.escape(_base) + r'/team/[^"]+\.html)">'
 
 links = re.findall(pattern, html_content)
 # Remove duplicates (if any)

@@ -27,6 +27,7 @@ from config import (
     BOT_TOKEN,
     PROFILES_JSON, APPOINTMENTS_DB, MAPPING_JSON, USER_RECORDS_DB,
     CRAWLER_INTERVAL_HOURS, ADMIN_USER_IDS, ADMIN_PANEL_PASSWORD,
+    CENTER_NAME, CENTER_BASE_URL,
 )
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -61,7 +62,7 @@ def _profile_url(name: str) -> str:
                     return v
     except Exception:
         pass
-    return f"https://example.com/team/{name.replace(' ', '-')}.html"
+    return f"{CENTER_BASE_URL}/team/{name.replace(' ', '-')}.html"
 
 
 def _is_admin(uid: int) -> bool:
@@ -147,7 +148,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["_in_main_conv"] = True
 
     welcome_text = (
-        "🌸 **سلام! به سامانه هوشمند پذیرش مرکز «خانواده مرکز مشاوره» خوش آمدید.**\n\n"
+        f"🌸 **سلام! به سامانه هوشمند پذیرش «{CENTER_NAME}» خوش آمدید.**\n\n"
         "ما با بررسی دقیق شرایط و نیاز شما، مناسب‌ترین مشاوران مرکز را معرفی می‌کنیم.\n\n"
         "لطفاً **نام و نام خانوادگی** خود را وارد فرمایید:"
     )
@@ -194,7 +195,7 @@ async def phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Show a welcome-back message for returning clients
     if req_count > 1:
         await update.message.reply_text(
-            f"🌹 خوش‌آمدید {full_name} عزیز! این **بار {req_count}‌ام** است که در مرکز خانواده مرکز مشاوره در خدمت شما هستیم.",
+            f"🌹 خوش‌آمدید {full_name} عزیز! این **بار {req_count}‌ام** است که در {CENTER_NAME} در خدمت شما هستیم.",
             parse_mode=ParseMode.MARKDOWN
         )
 
@@ -285,7 +286,7 @@ async def preferred_gender_handler(update: Update, context: ContextTypes.DEFAULT
 
     user_data_cache[str(update.effective_user.id)]["preferred_gender"] = text
     await update.message.reply_text(
-        "کدام شعبه مرکز مشاوره خانواده مرکز مشاوره برای شما مناسب‌تر است؟",
+        f"کدام شعبه {CENTER_NAME} برای شما مناسب‌تر است؟",
         reply_markup=BRANCH_KB
     )
     return BRANCH
@@ -402,7 +403,7 @@ async def _recommend(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "ghq_scores": data.get("ghq_scores", None),
     }
 
-    await update.message.reply_text("🔄 در حال پردازش در موتور هوشمند مرکز خانواده مرکز مشاوره...", reply_markup=REMOVE_KB)
+    await update.message.reply_text(f"🔄 در حال پردازش در موتور هوشمند {CENTER_NAME}...", reply_markup=REMOVE_KB)
 
     recs = engine.match(user_info)
 
@@ -416,11 +417,11 @@ async def _recommend(update: Update, context: ContextTypes.DEFAULT_TYPE):
             record_learning_event(r["name"], user_info["topic"], ghq_level=ghq_lvl, success=True)
 
         count_badge = f" (ثبت درخواست نوبت {req_number} شما)" if req_number > 1 else ""
-        msg = f"🎯 **مشاوران برگزیده مرکز خانواده مرکز مشاوره برای شما{count_badge}:**\n\n"
+        msg = f"🎯 **مشاوران برگزیده {CENTER_NAME} برای شما{count_badge}:**\n\n"
         for i, r in enumerate(recs, 1):
             msg += f"🏅 **گزینه {i}: {r['name']}**\n"
             msg += f"📋 دلیل پیشنهاد: {r['reason']}\n"
-            msg += f"🔗 [مشاهده نوبت‌ها و رزرو در سایت خانواده مرکز مشاوره]({_profile_url(r['name'])})\n\n"
+            msg += f"🔗 [مشاهده نوبت‌ها و رزرو در سایت {CENTER_NAME}]({_profile_url(r['name'])})\n\n"
             
         msg += "✨ برای ارزیابی مجدد یا ثبت درخواست جدید، گزینه «شروع مجدد» را انتخاب کنید."
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True, reply_markup=RESTART_KB)
@@ -458,7 +459,7 @@ async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def _send_admin_menu(update: Update):
     await update.message.reply_text(
-        f"👑 **پنل مدیریت مرکز مشاوره خانواده مرکز مشاوره**\nمشاوران فعال: {len(engine.profiles)}\n\n"
+        f"👑 **پنل مدیریت {CENTER_NAME}**\nمشاوران فعال: {len(engine.profiles)}\n\n"
         "📣 **ارسال پیام همگانی (برادکست):**\n"
         "/broadcast - شروع ارسال پیام همگانی (یا روی پیام دلخواه ریپلای کنید)\n"
         "/cancel_broadcast - لغو عملیات برادکست\n\n"
@@ -579,7 +580,7 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         total_users, total_requests = 0, 0
 
     msg = (
-        f"📊 **آمار سیستم خانواده مرکز مشاوره:**\n"
+        f"📊 **آمار سیستم {CENTER_NAME}:**\n"
         f"👥 مراجعین ثبت‌شده: {total_users} نفر\n"
         f"📑 کل ارزیابی‌های انجام‌شده: {total_requests} بار\n"
         f"👩‍⚕️ تعداد مشاوران فعال در موتور: {len(engine.profiles)} نفر\n\n"
@@ -1071,7 +1072,7 @@ async def export_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buf.name = "counseling_users.xlsx"
         from datetime import datetime as _dt
         caption = (
-            f"📋 **خروجی دیتای کاربران مرکز خانواده مرکز مشاوره**\n"
+            f"📋 **خروجی دیتای کاربران {CENTER_NAME}**\n"
             f"🗓 تاریخ تولید: {_dt.now().strftime('%Y-%m-%d %H:%M')}\n"
             f"شیت ۱: کاربران | شیت ۲: سوابق درخواست‌ها"
         )
