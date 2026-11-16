@@ -730,6 +730,7 @@ async def upload_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def _process_consultants_excel_sync(xlsx_bytes: bytes, uploaded_by: int) -> dict:
     """Synchronous processing: save file → convert to JSON → replace DB → return result"""
     import json as _json
+    import shutil
     base = PROFILES_JSON.parent
 
     # 1. Permanently save the Excel file with a timestamp
@@ -738,11 +739,27 @@ def _process_consultants_excel_sync(xlsx_bytes: bytes, uploaded_by: int) -> dict
     saved_xlsx = base / f"consultants_{stamp}.xlsx"
     saved_xlsx.write_bytes(xlsx_bytes)
 
-    # 2. Convert to JSON (the project's original file)
-    count_json = convert_excel_to_json(str(saved_xlsx), str(PROFILES_JSON))
+    # 2. Convert to a TEMP JSON first. A wrong-format spreadsheet converts
+    # "successfully" to an empty list — installing it would wipe the live
+    # profiles file and the consultants table. Only a non-empty conversion
+    # is allowed to replace the current data.
+    tmp_json = base / f".profiles_tmp_{stamp}.json"
+    count_json = convert_excel_to_json(str(saved_xlsx), str(tmp_json))
+    profiles = []
+    if tmp_json.exists():
+        try:
+            profiles = _json.loads(tmp_json.read_text(encoding="utf-8"))
+        except Exception:
+            profiles = []
+    if not profiles:
+        tmp_json.unlink(missing_ok=True)
+        raise ValueError(
+            "هیچ مشاوری از این فایل استخراج نشد؛ احتمالاً قالب فایل با قالب مورد انتظار فرق دارد. "
+            "دیتای فعلی مشاوران دست‌نخورده باقی ماند."
+        )
+    shutil.move(str(tmp_json), str(PROFILES_JSON))
 
-    # 3. Read the JSON and fully replace the consultants table in the database (with comparison)
-    profiles = _json.loads(PROFILES_JSON.read_text(encoding="utf-8"))
+    # 3. Fully replace the consultants table in the database (with comparison)
     compare = replace_consultants(profiles, uploaded_by)
 
     return {
