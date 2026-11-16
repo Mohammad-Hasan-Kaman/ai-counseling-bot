@@ -29,6 +29,11 @@ def fetch_page(url: str) -> str:
         proxies = DIRECT_PROXIES if attempt > 0 else None
         try:
             resp = requests.get(url, headers=CRAWLER_HEADERS, timeout=15, proxies=proxies)
+            # An HTTP error page (500/404/...) is a failed fetch, not content:
+            # route it through the same retry/preserve path as a network error,
+            # otherwise an error page would be parsed as an empty profile page
+            # and the counselor's stored slots would be wiped.
+            resp.raise_for_status()
             return resp.text
         except Exception as e:
             last_err = e
