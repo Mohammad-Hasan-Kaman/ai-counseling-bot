@@ -19,13 +19,12 @@ PROFILES_JSON = DATA_DIR / "consultants_profile_full.json"
 APPOINTMENTS_DB = DATA_DIR / "appointments.db"
 LEARNING_DB = DATA_DIR / "ai_knowledge.db"
 
+# Example names only — deployments must replace this set with the male
+# counselors of their own roster (used for name-based gender matching when
+# the roster data carries no gender field).
 MALE_COUNSELORS = {
-    "محمدعلی نوری", "سید مجید ذاکری", "سید امیر زرباف", "محمدابراهیم کلباسی",
-    "حمید رضا افسری", "محمدعلی رفیق‌دوست", "حامد مجدی", "مهدی شمس الاحرار فرد",
-    "شاهین رضا ادیبی", "جلایی فر", "محمدباقردربندی", "محمدصادق رمضانی زاده",
-    "رضا غفارزاده نمازی", "اسماعیل اسماعیلی شریف", "محمود گلزاری", "محمد رضا کمن",
-    "عباس باقری", "امیر حسین طهرانچی", "سید ایمان مصلح طهرانی", "حسین مینایی نیا",
-    "مصطفی غریب", "سجاد جلایی فر"
+    "علی رضایی", "رضا محمدی", "حسن کریمی", "محمد احمدی", "امیر حسینی",
+    "مهدی موسوی", "حسین صادقی", "سعید نجفی", "جواد عزیزی", "کاظم رحیمی",
 }
 
 NUM_WORDS = {
