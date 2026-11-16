@@ -354,8 +354,16 @@ class SpiralMatchEngine:
     def _load_and_index_profiles(self) -> List[Dict[str, Any]]:
         if not self.profiles_path.exists():
             return []
-        with open(self.profiles_path, "r", encoding="utf-8") as f:
-            raw_profiles = json.load(f)
+        try:
+            with open(self.profiles_path, "r", encoding="utf-8") as f:
+                raw_profiles = json.load(f)
+        except Exception:
+            # A corrupt/unreadable profiles file must not kill the bot at
+            # startup (the engine is constructed at import time in main.py):
+            # degrade to "no counselors" and let an admin /upload fix it.
+            return []
+        if not isinstance(raw_profiles, list):
+            return []
         indexed = []
         for p in raw_profiles:
             name = p.get("name", "").strip()
