@@ -103,6 +103,14 @@ cp .env.example .env    # then edit .env — see below
 python main.py
 ```
 
+> **Counselor data is not in the repo.** On a fresh clone the bot starts
+> and answers, but it has no counselors to recommend yet. Load them by
+> sending the counselors spreadsheet to the bot with `/upload` (or run
+> `excel_to_json.py` on it), and let the crawler generate `mapping.json`
+> (name → profile URL) from your team page — see `mapping.example.json`
+> for the format. Until then, matching politely reports that no
+> counselor was found.
+
 ### Configuration (`.env`)
 
 | Variable | Description |
