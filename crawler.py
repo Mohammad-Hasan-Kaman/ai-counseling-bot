@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
+import os
 import sqlite3
 import time
 import requests
 from bs4 import BeautifulSoup
 from config import (APPOINTMENTS_DB, MAPPING_JSON, CRAWLER_DELAY_SECONDS,
-                    CRAWLER_HEADERS, CENTER_BASE_URL, CENTER_TEAM_URL)
+                    CRAWLER_HEADERS, CRAWLER_LOCK, CENTER_BASE_URL, CENTER_TEAM_URL)
 
 log = logging.getLogger(__name__)
 TEAM_URL = CENTER_TEAM_URL
@@ -85,7 +86,50 @@ def scrape_team_list() -> int:
         return 0
 
 
+LOCK_STALE_SECONDS = 3600   # a lock older than this is treated as abandoned
+
+
+def _acquire_crawl_lock() -> bool:
+    """Take the crawl lock (config.CRAWLER_LOCK) so the scheduled, startup and
+    manual (/crawl) runs can never interleave their DELETE/INSERT writes."""
+    for _ in range(2):
+        try:
+            fd = os.open(str(CRAWLER_LOCK), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(time.time()).encode())
+            os.close(fd)
+            return True
+        except FileExistsError:
+            try:
+                age = time.time() - os.path.getmtime(str(CRAWLER_LOCK))
+            except OSError:
+                continue
+            if age < LOCK_STALE_SECONDS:
+                return False
+            try:
+                os.remove(str(CRAWLER_LOCK))
+            except OSError:
+                return False
+    return False
+
+
+def _release_crawl_lock():
+    try:
+        os.remove(str(CRAWLER_LOCK))
+    except OSError:
+        pass
+
+
 def crawl_available_slots():
+    if not _acquire_crawl_lock():
+        log.warning("⏭️ کراول دیگری در حال اجراست؛ این اجرا رد شد.")
+        return
+    try:
+        _crawl_available_slots_locked()
+    finally:
+        _release_crawl_lock()
+
+
+def _crawl_available_slots_locked():
     scrape_team_list()
     init_db()
     try:
