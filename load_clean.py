@@ -1,8 +1,15 @@
 import os
 import json
 import re
+import sqlite3
 import pandas as pd
-from config import PROFILES_JSON, BASE_DIR
+from config import PROFILES_JSON, BASE_DIR, MAPPING_JSON
+
+# This loader rebuilds a standalone staging database from the center's raw
+# Excel export (sheet "Results"). The staging DB is this script's own file —
+# dropped and recreated on every run — and is separate from the bot's live
+# databases in user_db.py.
+DB_PATH = BASE_DIR / "consultants_staging.db"
 
 if os.path.exists(DB_PATH):
     os.remove(DB_PATH)
@@ -35,55 +42,17 @@ df = pd.read_excel(EXCEL_PATH, sheet_name='Results', header=None)
 header_row = df.iloc[0]
 data_rows = df.iloc[3:]
 
-# ================== Target counselors (unique list) ==================
-TARGET_NAMES = {
-    "ریحانه سادات مدنی",
-    "محمدعلی نوری",
-    "سید امیر زرباف",
-    "ریحانه صبورنژاد",
-    "طلعت آهنگر",
-    "ثمینه خندان",
-    "سوده علی بخشیان",
-    "راحله گرجی",
-    "محمدابراهیم کلباسی",
-    "حمید رضا افسری",
-    "فهیمه سابقی",
-    "فاطمه سعیدیان",
-    "محمدعلی رفیق‌دوست",
-    "حامد مجدی",
-    "زهرا مجاهدی",
-    "شادی نوروزعلی",
-    "زهرا نیلی",
-    "زینب السادات میرجعفری",
-    "شاهین رضا ادیبی",
-    "مهساامیدبیکی",
-    "زهرا جواهری محمدی",
-    "محمدباقردربندی",
-    "جلایی فر",
-    "سارا رضایی",
-    "زهرا نعمتی‌پور",
-    "محمدصادق رمضانی زاده",
-    "سمیه آزاد",
-    "شقایق ملکوتی خواه",
-    "سپیده خراسانچی",
-    "فاطمه مقربان",
-    "مونا هاشمی",
-    "فاطمه عزیززاده",
-    "لیلا محمدزاده",
-    "زهراسادات عطاردی",
-    "فرخ لقا عکافی",
-    "معصومه سادات افضلی",
-    "محیا سادات شاه‌صاحبی",
-    "رضا غفارزاده نمازی",
-    "اسماعیل اسماعیلی شریف",
-    "نداطالب",
-    "زینب علی پور",
-    "زهرا مسگریان",
-    "زهرا دانشیان",
-    "شیما قبا",
-    "زهرا کربلائی",
-    "هاله آمیغی"
-}
+# ================== Optional counselor filter ==================
+# Real counselor names must never be committed to this public repo, so the
+# optional allow-list is read at runtime from a local file named by the
+# TARGET_NAMES_FILE env var (one name per line, UTF-8). When the variable
+# is unset, every row of the export is loaded (no filtering).
+TARGET_NAMES = set()
+_names_file = os.getenv("TARGET_NAMES_FILE", "")
+if _names_file and os.path.exists(_names_file):
+    with open(_names_file, "r", encoding="utf-8") as _f:
+        TARGET_NAMES = {line.strip() for line in _f if line.strip()}
+    print(f"📋 فیلتر نام‌ها فعال شد: {len(TARGET_NAMES)} نام از فایل محلی خوانده شد.")
 # ================================================================
 
 # Find the column indices
@@ -152,15 +121,14 @@ def extract_specialties(text):
     parts = [p.strip() for p in text.split(',') if p.strip()]
     return parts
 
-# Load profile links from the mapping file
+# Load profile links from the crawler's mapping file (name -> profile URL)
 profile_url_map = {}
 try:
-    with open("consultant_mapping.json", "r", encoding="utf-8") as f:
-        temp = json.load(f)
-        profile_url_map = {v: k for k, v in temp.items()}
+    with open(MAPPING_JSON, "r", encoding="utf-8") as f:
+        profile_url_map = json.load(f)
     print(f"📋 {len(profile_url_map)} لینک از mapping بارگذاری شد.")
-except:
-    print("⚠️ فایل consultant_mapping.json یافت نشد.")
+except Exception:
+    print("⚠️ فایل mapping.json یافت نشد.")
 
 count = 0
 found_names = set()
@@ -172,7 +140,7 @@ for idx, row in data_rows.iterrows():
 
     # Remove extra whitespace and normalize
     name = name.strip()
-    if name not in TARGET_NAMES:
+    if TARGET_NAMES and name not in TARGET_NAMES:
         continue
 
     if name in found_names:
