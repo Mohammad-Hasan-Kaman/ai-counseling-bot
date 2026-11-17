@@ -17,7 +17,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-22d3ee?style=flat-square" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/python-3.9%2B-34d399?style=flat-square" alt="Python 3.9+">
+  <img src="https://img.shields.io/badge/python-3.10%2B-34d399?style=flat-square" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Bale%20messenger-a78bfa?style=flat-square" alt="Platform: Bale">
   <img src="https://img.shields.io/badge/AI-engine%20built--in-fbbf24?style=flat-square" alt="AI engine built in">
   <img src="https://img.shields.io/badge/UI-Persian%20RTL-38bdf8?style=flat-square" alt="Persian RTL UI">
@@ -123,9 +123,10 @@ No secret is stored in the code — all credentials are read from the environmen
 
 ### Requirements
 
-- Python 3.9+
+- Python 3.10+
 - `python-telegram-bot` (pointed at `https://tapi.bale.ai/bot`), `APScheduler`,
-  `requests`, `beautifulsoup4`, `pandas`, `openpyxl`, `python-dotenv`
+  `requests`, `beautifulsoup4`, `pandas`, `openpyxl`, `python-dotenv`,
+  `setuptools < 81` (APScheduler 3.10 imports `pkg_resources` at startup)
 
 ## 🛠 Admin commands
 

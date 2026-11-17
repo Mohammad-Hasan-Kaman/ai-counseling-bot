@@ -17,4 +17,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fallback.
 - In-bot admin panel with statistics, Excel export and hot-reload of counselor
   data.
-- Bale messenger webhook handling and the public release of the source tree.
+- Bale messenger long-polling transport and the public release of the source tree.
